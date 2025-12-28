@@ -13,7 +13,9 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from database import get_session, File
+from app.models.models import RootFolder, File
+from app.db.database import get_db
+from app.core.deps import require_root_access
 
 # Extratores (locais)
 from PyPDF2 import PdfReader
@@ -136,7 +138,7 @@ class IndexRunResult(BaseModel):
 # --------- endpoint ---------
 @router.post("/run", response_model=IndexRunResult)
 def index_run(
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
     root_id: Optional[int] = Query(None, description="Se informado, indexa apenas essa raiz"),
     ext: Optional[str] = Query(None, description="Filtro por extensões: ex 'pdf,docx,xlsx'"),
     limit: Optional[int] = Query(None, ge=1, le=100000, description="Limite opcional de arquivos a processar"),

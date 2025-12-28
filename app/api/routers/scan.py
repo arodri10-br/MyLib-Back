@@ -19,7 +19,9 @@ from fastapi import APIRouter, Depends, HTTPException, Query
 from pydantic import BaseModel
 from sqlalchemy.orm import Session
 
-from database import RootFolder, File, get_session
+from app.models.models import RootFolder, File
+from app.db.database import get_db
+from app.core.deps import require_root_access
 
 router = APIRouter(prefix="/scan", tags=["Scan / Varredura"])
 
@@ -56,7 +58,8 @@ def normalize_ext_list(ext: Optional[str]) -> Optional[List[str]]:
 def scan_root(
     root_id: int,
     ext: Optional[str] = Query(None, description="Filtro de extensões: ex 'pdf,docx,xlsx'"),
-    db: Session = Depends(get_session)
+    db: Session = Depends(get_db),
+    current_user = Depends(require_root_access('editor'))
 ):
     rf = db.query(RootFolder).filter(RootFolder.id == root_id).first()
     if not rf:

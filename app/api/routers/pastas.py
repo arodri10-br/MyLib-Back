@@ -12,9 +12,10 @@ from fastapi import APIRouter, Depends, HTTPException, Response
 from pydantic import BaseModel, Field, validator
 from sqlalchemy.orm import Session
 
-from database import RootFolder, get_session
-
-router = APIRouter(prefix="/roots", tags=["Pastas Raiz"])
+from app.models.models import RootFolder
+from app.db.database import get_db
+from app.core.deps import require_superuser
+router = APIRouter(prefix="/roots", tags=["Pastas Raiz"], dependencies=[Depends(require_superuser)])
 
 # -------- Schemas --------
 class RootCreate(BaseModel):
@@ -56,7 +57,7 @@ class RootOut(BaseModel):
 
 # -------- Endpoints --------
 @router.post("", response_model=RootOut, status_code=201)
-def create_root(inp: RootCreate, db: Session = Depends(get_session)):
+def create_root(inp: RootCreate, db: Session = Depends(get_db)):
     # path único
     exists = db.query(RootFolder).filter(RootFolder.path == inp.path).first()
     if exists:
@@ -69,19 +70,19 @@ def create_root(inp: RootCreate, db: Session = Depends(get_session)):
     return rf
 
 @router.get("", response_model=List[RootOut])
-def list_roots(db: Session = Depends(get_session)):
+def list_roots(db: Session = Depends(get_db)):
     rows = db.query(RootFolder).order_by(RootFolder.id.asc()).all()
     return rows
 
 @router.get("/{root_id}", response_model=RootOut)
-def get_root(root_id: int, db: Session = Depends(get_session)):
+def get_root(root_id: int, db: Session = Depends(get_db)):
     rf = db.query(RootFolder).filter(RootFolder.id == root_id).first()
     if not rf:
         raise HTTPException(status_code=404, detail="Root não encontrado")
     return rf
 
 @router.put("/{root_id}", response_model=RootOut)
-def update_root(root_id: int, inp: RootUpdate, db: Session = Depends(get_session)):
+def update_root(root_id: int, inp: RootUpdate, db: Session = Depends(get_db)):
     rf = db.query(RootFolder).filter(RootFolder.id == root_id).first()
     if not rf:
         raise HTTPException(status_code=404, detail="Root não encontrado")
@@ -107,7 +108,7 @@ def update_root(root_id: int, inp: RootUpdate, db: Session = Depends(get_session
     return rf
 
 @router.delete("/{root_id}", status_code=204)
-def delete_root(root_id: int, db: Session = Depends(get_session)):
+def delete_root(root_id: int, db: Session = Depends(get_db)):
     rf = db.query(RootFolder).filter(RootFolder.id == root_id).first()
     if not rf:
         raise HTTPException(status_code=404, detail="Root não encontrado")

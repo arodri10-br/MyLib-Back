@@ -13,9 +13,11 @@ from pydantic import BaseModel
 from sqlalchemy import text
 from sqlalchemy.orm import Session
 
-from database import get_session
+from app.models.models import RootFolder, File, RootFolderPermission
+from app.db.database import get_db
+from app.core.deps import get_current_user, require_root_access
 
-router = APIRouter(prefix="/search", tags=["Busca"])
+router = APIRouter(prefix="/search", tags=["Busca"], dependencies=[Depends(get_current_user)])
 
 class SearchResult(BaseModel):
     name: str
@@ -36,7 +38,8 @@ def to_file_uri(windows_path: str) -> str:
 
 @router.get("", response_model=List[SearchResult])
 def search(
-    db: Session = Depends(get_session),
+    db: Session = Depends(get_db),
+    current_user = Depends(get_current_user),
     q: str = Query(..., description="Consulta FTS5 (use aspas para frase, AND/OR, NEAR)"),
     ext: Optional[str] = Query(None, description="Filtro por extensões: ex 'pdf,docx,txt'"),
     root_id: Optional[int] = Query(None, description="Filtrar por uma raiz específica"),
@@ -47,10 +50,20 @@ def search(
     project: Optional[str] = Query(None, description="Código do projeto para boost"),
     limit: int = Query(50, ge=1, le=500)
 ):
+    # Segurança: se root_id foi informado, exige permissão mínima (reader)
+    if root_id is not None and current_user.is_superuser != 1:
+        perm = (
+            db.query(RootFolderPermission)
+            .filter(RootFolderPermission.root_id == root_id, RootFolderPermission.user_id == current_user.id)
+            .first()
+        )
+        if not perm:
+            from fastapi import HTTPException, status
+            raise HTTPException(status_code=status.HTTP_403_FORBIDDEN, detail="Sem permissão para este diretório raiz")
     # Monta SQL com MATCH + filtros + snippet
     sql_parts = []
     sql_parts.append("""
-        SELECT f.path, f.name, f.ext, f.size, f.mtime,
+        SELECT f.id as file_id, f.path, f.name, f.ext, f.size, f.mtime,
                snippet(docs, 0, '[', ']', ' ... ', 8) AS snip,
                CASE 
                  WHEN :project IS NOT NULL AND f.name LIKE '%'||:project||'%' THEN 10.0
@@ -107,9 +120,9 @@ def search(
     rows = db.execute(text(final_sql), params).fetchall()
 
     results = []
-    for path, name, extn, size, mtime, snip, boost in rows:
+    for file_id, path, name, extn, size, mtime, snip, boost in rows:
         file_uri = to_file_uri(path)
-        download_url = f"/download?path={path}"
+        download_url = f"/download/{file_id}"
         mtime_iso = datetime.fromtimestamp(mtime).isoformat()
         score = float(boost or 0.0)
         snippet = snip or ""
