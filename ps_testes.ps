@@ -1,0 +1,52 @@
+
+# Cadastrar diretorio :
+$body = @{ path = "C:\Projetos\OBI" } | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8000/roots" -Method POST -ContentType "application/json" -Body $body
+
+$body = @{ path = "G:\clariti\Class\ActionSys\Projetos\Andamento\P-758809 - Commercial Enhancements + Premium Price Screen Redesign"} | ConvertTo-Json
+Invoke-RestMethod -Uri "http://localhost:8000/roots" -Method POST -ContentType "application/json" -Body $body
+
+# Listar :
+Invoke-RestMethod -Uri "http://localhost:8000/roots" -Method GET
+
+# Get x Id :
+Invoke-RestMethod -Uri "http://localhost:8000/roots/1" -Method GET
+
+# Atualizar informações
+$update = @{
+  last_scan_at = (Get-Date).ToString("s")   # ex.: 2025-12-26T19:12:00
+  files_count = 1234
+  total_size_bytes = 987654321
+} | ConvertTo-Json
+
+Invoke-RestMethod -Uri "http://localhost:8000/roots/1" -Method PUT -ContentType "application/json" -Body $update
+
+#  Scan da raiz (carrega metadados dos arquivos)
+Invoke-RestMethod -Uri "http://localhost:8000/scan/1" -Method POST
+
+#  Scan da raiz (carrega metadados filtrando extensões conhecidas)
+Invoke-RestMethod -Uri "http://localhost:8000/scan/1?ext=pdf,docx,xlsx,txt,csv" -Method POST
+
+# Listar arquivos (metadados)
+Invoke-RestMethod -Uri "http://localhost:8000/files?root_id=1&limit=50" -Method GET
+Invoke-RestMethod -Uri "http://localhost:8000/files?root_id=1&ext=pdf&limit=50" -Method GET
+
+# Detalhar um arquivo por id
+Invoke-RestMethod -Uri "http://localhost:8000/files/2" -Method GET
+
+# Indexar conteúdo (FTS5)
+
+# Indexar apenas a raiz 1 e extensões PDF/DOCX
+Invoke-RestMethod -Uri "http://localhost:8000/index/run?root_id=1&ext=pdf,docx" -Method POST
+
+# Forçar reindexação completa (cuidado em grandes volumes)
+Invoke-RestMethod -Uri "http://localhost:8000/index/run?root_id=1&reindex_all=true" -Method POST
+
+
+
+# Buscar dados nos arquivos
+# Frase exata, filtros por extensão e boost por código de projeto
+Invoke-RestMethod -Uri "http://localhost:8000/search?q=%22v%C3%A1lvula%20de%20reten%C3%A7%C3%A3o%22&ext=pdf,docx&project=PRJ-0421&limit=50" -Method GET
+
+# Operadores AND/OR (fts5 entende), filtrar por data e tamanho
+Invoke-RestMethod -Uri "http://localhost:8000/search?q=retentor%20AND%20(inox%20OR%20a%C3%A7o)&since=2024-01-01&min_size=50000&limit=100" -Method GET
